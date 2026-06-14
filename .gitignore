@@ -1,0 +1,23 @@
+# Secrets / credentials — NEVER commit these
+client_secret.json
+token.json
+*.client_secret.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Local state / scratch
+test_photos/
+*.sqlite
+*.sqlite3
+.tmp/
+
+# macOS
+.DS_Store
+
+# built app bundle (rebuild via packaging/build_app.sh)
+TV Photos.app/
