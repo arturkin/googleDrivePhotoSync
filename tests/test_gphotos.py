@@ -12,10 +12,11 @@ from tv_photos.gphotos import (
 
 
 class FakeResp:
-    def __init__(self, status_code, json_body=None, text=""):
+    def __init__(self, status_code, json_body=None, text="", headers=None):
         self.status_code = status_code
         self._json = json_body or {}
         self.text = text
+        self.headers = headers or {}
 
     def json(self):
         return self._json
@@ -42,6 +43,23 @@ def _success_body(n, offset=0):
             for i in range(offset, offset + n)
         ]
     }
+
+
+def test_request_retries_429_then_succeeds():
+    session = FakeSession([FakeResp(429, headers={"Retry-After": "0"}), FakeResp(200, {})])
+    client = GooglePhotosClient(session, max_retries=3, pace=0)
+    client._sleep = lambda s: None  # don't actually wait in tests
+    r = client._request("GET", "http://x")
+    assert r.status_code == 200
+    assert len(session.calls) == 2  # retried once
+
+
+def test_album_add_recovers_from_429():
+    session = FakeSession([FakeResp(429, headers={"Retry-After": "0"}), FakeResp(200, {})])
+    client = GooglePhotosClient(session, max_retries=3, pace=0)
+    client._sleep = lambda s: None
+    client.album_add("alb", ["m1", "m2"])  # one chunk: 429 then 200 -> must NOT raise
+    assert len(session.calls) == 2
 
 
 def test_batch_create_continues_after_a_chunk_fails():

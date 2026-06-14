@@ -35,6 +35,13 @@ def test_set_and_get_album_members_replaces(tmp_path):
     assert st.get_album_members() == {"m2", "m4"}
 
 
+def test_all_media_item_ids(tmp_path):
+    st = State(tmp_path / "s.db")
+    st.record_upload("sha-1", "m1", "a.jpg")
+    st.record_upload("sha-2", "m2", "b.jpg")
+    assert set(st.all_media_item_ids()) == {"m1", "m2"}
+
+
 def test_persists_across_reopen(tmp_path):
     path = tmp_path / "s.db"
     st = State(path)

@@ -50,6 +50,9 @@ class State:
     def count_uploaded(self) -> int:
         return self.conn.execute("SELECT COUNT(*) AS n FROM uploaded").fetchone()["n"]
 
+    def all_media_item_ids(self) -> list[str]:
+        return [r["media_item_id"] for r in self.conn.execute("SELECT media_item_id FROM uploaded")]
+
     # --- album metadata --------------------------------------------------
     def set_album_id(self, album_id: str) -> None:
         self._set_meta("album_id", album_id)

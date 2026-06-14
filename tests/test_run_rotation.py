@@ -2,7 +2,7 @@ import random
 
 from tv_photos.gphotos import CreatedItem
 from tv_photos.models import Photo
-from tv_photos.pipeline import run_rotation
+from tv_photos.pipeline import reshuffle_existing, run_rotation
 from tv_photos.state import State
 
 
@@ -131,6 +131,20 @@ def test_uploads_use_jpeg_filename(tmp_path):
         rng=random.Random(0), hasher=lambda p: "sha-h", prepare=lambda p, m, q: b"x",
     )
     assert client.uploaded[0][0] == "IMG.jpg"  # filename normalized to .jpg
+
+
+def test_reshuffle_existing_uses_uploaded_pool_without_uploading(tmp_path):
+    st = State(tmp_path / "s.db")
+    for i in range(5):
+        st.record_upload(f"sha{i}", f"m{i}", f"{i}.jpg")
+    st.set_album_members(["m0", "m1"])  # current album
+    client = FakeClient()
+    report = reshuffle_existing(client=client, state=st, count=3, album_id="a", rng=random.Random(0))
+    assert client.uploaded == []  # nothing re-uploaded
+    assert report.uploaded == 0
+    members = st.get_album_members()
+    assert len(members) == 3
+    assert members.issubset({f"m{i}" for i in range(5)})
 
 
 def test_progress_callback_invoked_per_upload(tmp_path):

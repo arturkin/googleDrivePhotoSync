@@ -62,10 +62,22 @@ def backoff_seconds(attempt: int, rng: random.Random, *, base: float = 1.0, cap:
 
 
 class GooglePhotosClient:
-    def __init__(self, session, *, max_retries: int = 5):
+    def __init__(self, session, *, max_retries: int = 6, pace: float = 0.5):
         self.session = session
         self.max_retries = max_retries
+        self.pace = pace  # seconds to wait between album write chunks (avoid 429 bursts)
         self._rng = random.Random()
+        self._sleep = time.sleep  # injectable for tests
+
+    def _retry_delay(self, resp, attempt: int) -> float:
+        """Honor a Retry-After header if the server sent one, else exp backoff."""
+        retry_after = resp.headers.get("Retry-After") if resp is not None else None
+        if retry_after:
+            try:
+                return min(float(retry_after), 60.0) + self._rng.random()
+            except ValueError:
+                pass
+        return backoff_seconds(attempt, self._rng)
 
     def _request(self, method: str, url: str, **kwargs) -> requests.Response:
         kwargs.setdefault("timeout", 120)
@@ -77,11 +89,11 @@ class GooglePhotosClient:
                 last_exc = e
                 if attempt == self.max_retries:
                     raise
-                time.sleep(backoff_seconds(attempt, self._rng))
+                self._sleep(backoff_seconds(attempt, self._rng))
                 continue
             if resp.status_code < 400 or not should_retry(resp.status_code) or attempt == self.max_retries:
                 return resp
-            time.sleep(backoff_seconds(attempt, self._rng))
+            self._sleep(self._retry_delay(resp, attempt))
         if last_exc:  # pragma: no cover
             raise last_exc
         return resp
@@ -93,7 +105,9 @@ class GooglePhotosClient:
         return r.json()["id"]
 
     def album_add(self, album_id: str, media_item_ids) -> None:
-        for chunk in chunked(list(media_item_ids)):
+        for i, chunk in enumerate(chunked(list(media_item_ids))):
+            if i and self.pace:
+                self._sleep(self.pace)  # spread writes out to avoid 429 bursts
             r = self._request(
                 "POST",
                 f"{API}/albums/{album_id}:batchAddMediaItems",
@@ -102,7 +116,9 @@ class GooglePhotosClient:
             r.raise_for_status()
 
     def album_remove(self, album_id: str, media_item_ids) -> None:
-        for chunk in chunked(list(media_item_ids)):
+        for i, chunk in enumerate(chunked(list(media_item_ids))):
+            if i and self.pace:
+                self._sleep(self.pace)
             r = self._request(
                 "POST",
                 f"{API}/albums/{album_id}:batchRemoveMediaItems",

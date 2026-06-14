@@ -70,12 +70,22 @@ list. To **change how many photos** rotate, change `count`.
 ## Command line (optional)
 
 ```
-./.venv/bin/python -m tv_photos run            # the rotation (same as the app)
+./.venv/bin/python -m tv_photos run            # full rotation: scan libraries + upload new + reshuffle
+./.venv/bin/python -m tv_photos run --reuse    # FAST reshuffle from already-uploaded photos (no scan, no upload)
 ./.venv/bin/python -m tv_photos run --dry-run  # preview: scan + plan, NO uploads
 ./.venv/bin/python -m tv_photos run --count 20 # a small run (e.g. to test)
 ./.venv/bin/python -m tv_photos status         # show album, totals, libraries
 ./.venv/bin/python -m tv_photos init           # one-time: sign in + create album
 ```
+
+### Two ways to rotate
+
+- **Full run** (`run`, and what `TV Photos.app` does) — scans your libraries (~5 min) and
+  uploads freshly-chosen photos. Adds variety but uploads ~1000 new photos each time
+  (permanent storage grows).
+- **Quick reshuffle** (`run --reuse`) — picks a new random set from photos you've **already
+  uploaded**; no scan, no upload, finishes in seconds, no extra storage. Best for day-to-day
+  “give me a different mix.” Run a **full run** occasionally when you want new content in the pool.
 
 ---
 

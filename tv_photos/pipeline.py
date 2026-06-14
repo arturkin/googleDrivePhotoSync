@@ -50,6 +50,38 @@ def build_upload_plan(selected: list[Photo], state, hasher) -> UploadPlan:
     return UploadPlan(known=known, to_upload=to_upload)
 
 
+def reshuffle_existing(
+    *,
+    client,
+    state,
+    count: int,
+    album_id: str,
+    rng: random.Random,
+    log=lambda msg: None,
+) -> RunReport:
+    """Reshuffle the album from ALREADY-uploaded photos — no library scan, no uploads.
+
+    Fast/free rotation (and the recovery path when uploads succeeded but the album
+    membership update didn't).
+    """
+    pool = state.all_media_item_ids()
+    target = rng.sample(pool, min(count, len(pool)))
+    current = state.get_album_members()
+    to_add, to_remove = compute_diff(current, target)
+    if to_add:
+        client.album_add(album_id, to_add)
+    if to_remove:
+        client.album_remove(album_id, to_remove)
+    state.set_album_members(target)
+    log(f"reshuffle: album +{len(to_add)} -{len(to_remove)} -> {len(target)} "
+        f"(from {len(pool)} already uploaded; no new uploads)")
+    return RunReport(
+        pool=len(pool), selected=len(target), reused=len(target), uploaded=0,
+        upload_failed=0, added=len(to_add), removed=len(to_remove),
+        album_size=len(target), dry_run=False,
+    )
+
+
 def run_rotation(
     *,
     client,

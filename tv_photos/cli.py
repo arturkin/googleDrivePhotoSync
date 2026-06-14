@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .auth import make_client
 from .config import load_config, render_config_template
-from .pipeline import run_rotation
+from .pipeline import reshuffle_existing, run_rotation
 from .progress import format_progress
 from .source import enumerate_photos
 from .state import State
@@ -87,6 +87,18 @@ def cmd_run(args) -> int:
         sys.exit("No album yet — run `tv-photos init` first.")
 
     count = args.count if args.count else cfg.count
+
+    if args.reuse:
+        # Fast/free: reshuffle the album from already-uploaded photos (no scan, no upload).
+        client = make_client(client_secret, token)
+        report = reshuffle_existing(
+            client=client, state=st, count=count, album_id=album_id,
+            rng=random.Random(), log=print,
+        )
+        print(f"\nDone (reuse). selected={report.selected} "
+              f"album=+{report.added}/-{report.removed} -> {report.album_size}")
+        return 0
+
     dry = cfg.dry_run or args.dry_run
     client = None if dry else make_client(client_secret, token)
 
@@ -157,6 +169,8 @@ def main(argv=None) -> int:
     pr = sub.add_parser("run", help="select + upload + reshuffle the album (the core loop)")
     pr.add_argument("--dry-run", action="store_true", help="no write calls; just print the plan")
     pr.add_argument("--count", type=int, help="override rotation count for this run (e.g. a small first test)")
+    pr.add_argument("--reuse", action="store_true",
+                    help="reshuffle the album from already-uploaded photos only (no library scan, no new uploads)")
     pr.set_defaults(func=cmd_run)
 
     ps = sub.add_parser("status", help="show pool/album/credential state")
