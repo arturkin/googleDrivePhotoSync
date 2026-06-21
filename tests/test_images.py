@@ -59,14 +59,25 @@ def test_flattens_rgba_to_rgb(tmp_path):
     assert out.mode == "RGB"
 
 
-def test_draw_location_label_writes_bottom_left_only():
+def test_draw_location_label_writes_bottom_center():
     base = Image.new("RGB", (1600, 900), (0, 0, 0))
     out = draw_location_label(base, "Reykjavík, Iceland")
     assert out.size == base.size
     assert out.mode == "RGB"
-    # bottom-left got bright ink; top-right is untouched (still black)
-    assert _mean_luma(out, (0, 820, 600, 900)) > 1
-    assert _mean_luma(out, (1200, 0, 1600, 200)) < 0.01
+    # ink sits in the bottom-center band; the top is untouched
+    assert _mean_luma(out, (500, 740, 1100, 880)) > 1
+    assert _mean_luma(out, (0, 0, 1600, 200)) < 0.01
+    # bottom padding keeps text clear of the very edge (so the TV can't clip it)
+    assert _mean_luma(out, (0, 895, 1600, 900)) < 0.01
+
+
+def test_draw_location_label_is_horizontally_centered():
+    base = Image.new("RGB", (1600, 900), (0, 0, 0))
+    out = draw_location_label(base, "Reykjavík, Iceland")
+    center = _mean_luma(out, (600, 740, 1000, 900))
+    left = _mean_luma(out, (0, 740, 300, 900))
+    right = _mean_luma(out, (1300, 740, 1600, 900))
+    assert center > left and center > right
 
 
 def test_draw_location_label_does_not_mutate_input():

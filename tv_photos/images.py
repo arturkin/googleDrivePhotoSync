@@ -40,24 +40,24 @@ def draw_location_label(
     text: str,
     *,
     height_ratio: float = 0.016,
-    margin_ratio: float = 0.04,
+    bottom_ratio: float = 0.075,
 ) -> Image.Image:
-    """Return a copy of ``im`` with ``text`` burned into the bottom-left corner.
+    """Return a copy of ``im`` with ``text`` burned into the bottom-center.
 
-    White text on a soft drop shadow so it stays legible over any photo — placed
-    near where Google TV Ambient mode renders the album name. Size and margins
-    scale with the image (via ``height_ratio`` / ``margin_ratio``) so it looks
-    consistent across 4K landscape and phone portrait shots. Never mutates the input.
+    White text on a soft drop shadow so it stays legible over any photo. Centered
+    horizontally and lifted ``bottom_ratio`` of the height off the bottom edge, so
+    the TV's overscan / ambient overlay can't clip it. Size scales with the image
+    (``height_ratio``) so it's consistent across 4K landscape and phone portrait.
+    Never mutates the input.
     """
     base = im.convert("RGBA")
     w, h = base.size
     font = _load_font(max(14, round(h * height_ratio)))
-    margin = round(min(w, h) * margin_ratio)
 
     draw = ImageDraw.Draw(base)
     left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
-    x = margin - left
-    y = h - margin - (bottom - top) - top
+    x = (w - (right - left)) // 2 - left
+    y = h - round(h * bottom_ratio) - (bottom - top) - top
 
     # Soft drop shadow on its own layer, blurred, then composited under the text.
     shadow = Image.new("RGBA", base.size, (0, 0, 0, 0))
