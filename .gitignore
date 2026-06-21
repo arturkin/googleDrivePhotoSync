@@ -12,6 +12,7 @@ __pycache__/
 
 # Local state / scratch
 test_photos/
+preview_samples/
 *.sqlite
 *.sqlite3
 .tmp/

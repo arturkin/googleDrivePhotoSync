@@ -18,6 +18,8 @@ class Config:
     jpeg_quality: int = 85
     album_title: str = "TV Rotation"
     count: int = 1000
+    reshuffle_count: int = 75
+    overlay_location: bool = True
     dry_run: bool = False
 
 
@@ -27,6 +29,7 @@ def load_config(path: str | Path) -> Config:
     source = data.get("source", {})
     quality = data.get("quality", {})
     rotation = data.get("rotation", {})
+    overlay = data.get("overlay", {})
     behavior = data.get("behavior", {})
 
     cfg = Config(
@@ -37,6 +40,8 @@ def load_config(path: str | Path) -> Config:
         jpeg_quality=quality.get("jpeg_quality", 85),
         album_title=rotation.get("album_title", "TV Rotation"),
         count=rotation.get("count", 1000),
+        reshuffle_count=rotation.get("reshuffle_count", 75),
+        overlay_location=overlay.get("location", True),
         dry_run=behavior.get("dry_run", False),
     )
     _validate(cfg)
@@ -50,6 +55,8 @@ def _validate(cfg: Config) -> None:
         )
     if cfg.count < 1:
         raise ValueError("config [rotation].count must be >= 1")
+    if cfg.reshuffle_count < 1:
+        raise ValueError("config [rotation].reshuffle_count must be >= 1")
     if cfg.min_width < 0:
         raise ValueError("config [quality].min_width must be >= 0")
     if not 1 <= cfg.jpeg_quality <= 100:
@@ -74,7 +81,11 @@ jpeg_quality = 85
 
 [rotation]
 album_title = "TV Rotation"
-count = 1000                  # photos in the album each run (favorites first, then random fill)
+count = 1000                  # photos uploaded per full `run` (favorites first, then random fill)
+reshuffle_count = 75          # album size for `reshuffle` — keep small so the TV cycles them all
+
+[overlay]
+location = true               # burn "City, Country" into the bottom-left of each photo (skipped if unknown)
 
 [behavior]
 dry_run = false

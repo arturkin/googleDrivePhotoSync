@@ -20,6 +20,8 @@ def test_load_minimal_applies_defaults(tmp_path):
     assert cfg.album_title == "TV Rotation"
     assert cfg.exclude_screenshots is True
     assert cfg.dry_run is False
+    assert cfg.overlay_location is True
+    assert cfg.reshuffle_count == 75
 
 
 def test_load_overrides(tmp_path):
@@ -38,6 +40,10 @@ jpeg_quality = 90
 [rotation]
 album_title = "Living Room"
 count = 250
+reshuffle_count = 60
+
+[overlay]
+location = false
 
 [behavior]
 dry_run = true
@@ -51,6 +57,8 @@ dry_run = true
     assert cfg.jpeg_quality == 90
     assert cfg.album_title == "Living Room"
     assert cfg.count == 250
+    assert cfg.reshuffle_count == 60
+    assert cfg.overlay_location is False
     assert cfg.dry_run is True
 
 
@@ -69,6 +77,12 @@ def test_empty_libraries_raises(tmp_path):
 def test_count_must_be_positive(tmp_path):
     p = write(tmp_path, '[source]\nlibraries = ["/a"]\n[rotation]\ncount = 0\n')
     with pytest.raises(ValueError, match="count"):
+        load_config(p)
+
+
+def test_reshuffle_count_must_be_positive(tmp_path):
+    p = write(tmp_path, '[source]\nlibraries = ["/a"]\n[rotation]\nreshuffle_count = 0\n')
+    with pytest.raises(ValueError, match="reshuffle_count"):
         load_config(p)
 
 

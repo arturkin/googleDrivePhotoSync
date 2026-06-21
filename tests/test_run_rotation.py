@@ -6,8 +6,9 @@ from tv_photos.pipeline import reshuffle_existing, run_rotation
 from tv_photos.state import State
 
 
-def ph(uuid, path, fav=False):
-    return Photo(uuid=uuid, path=path, filename=f"{uuid}.jpg", width=4000, height=3000, favorite=fav)
+def ph(uuid, path, fav=False, place=""):
+    return Photo(uuid=uuid, path=path, filename=f"{uuid}.jpg", width=4000, height=3000,
+                 favorite=fav, place=place)
 
 
 class FakeClient:
@@ -52,7 +53,7 @@ def cands():
 
 
 HASH = {"/a.jpg": "sha-a", "/b.jpg": "sha-b", "/c.jpg": "sha-c"}
-NOOP_PREPARE = lambda path, m, q: b"bytes"
+NOOP_PREPARE = lambda path, m, q, label=None: b"bytes"
 HASHER = lambda path: HASH[path]
 
 
@@ -128,7 +129,7 @@ def test_uploads_use_jpeg_filename(tmp_path):
         candidates=[Photo(uuid="h", path="/h.heic", filename="IMG.HEIC",
                           width=4000, height=3000, favorite=False)],
         count=1, album_id="a", max_long_edge=3840, jpeg_quality=85,
-        rng=random.Random(0), hasher=lambda p: "sha-h", prepare=lambda p, m, q: b"x",
+        rng=random.Random(0), hasher=lambda p: "sha-h", prepare=lambda p, m, q, label=None: b"x",
     )
     assert client.uploaded[0][0] == "IMG.jpg"  # filename normalized to .jpg
 
@@ -157,6 +158,40 @@ def test_progress_callback_invoked_per_upload(tmp_path):
         progress=lambda done, total: seen.append((done, total)),
     )
     assert seen == [(1, 3), (2, 3), (3, 3)]
+
+
+def _capture_prepare():
+    seen = {}
+
+    def prepare(path, m, q, label=None):
+        seen[path] = label
+        return b"x"
+
+    return prepare, seen
+
+
+def test_overlay_location_passes_place_label_to_prepare(tmp_path):
+    st = State(tmp_path / "s.db")
+    prepare, seen = _capture_prepare()
+    cand = [ph("a", "/a.jpg", place="Reykjavík, Iceland")]
+    run_rotation(
+        client=FakeClient(), state=st, candidates=cand, count=1, album_id="al",
+        max_long_edge=3840, jpeg_quality=85, rng=random.Random(0),
+        hasher=lambda p: "sha-a", prepare=prepare, overlay_location=True,
+    )
+    assert seen["/a.jpg"] == "Reykjavík, Iceland"
+
+
+def test_overlay_off_by_default_passes_no_label(tmp_path):
+    st = State(tmp_path / "s.db")
+    prepare, seen = _capture_prepare()
+    cand = [ph("a", "/a.jpg", place="Reykjavík, Iceland")]
+    run_rotation(
+        client=FakeClient(), state=st, candidates=cand, count=1, album_id="al",
+        max_long_edge=3840, jpeg_quality=85, rng=random.Random(0),
+        hasher=lambda p: "sha-a", prepare=prepare,
+    )
+    assert seen["/a.jpg"] is None
 
 
 def test_failed_create_is_excluded_from_album(tmp_path):

@@ -21,3 +21,13 @@ def select_rotation(candidates: list[Photo], n: int, rng: random.Random) -> list
         return rng.sample(favorites, n)
     fill = rng.sample(others, min(n - len(favorites), len(others)))
     return favorites + fill
+
+
+def select_preview(candidates: list[Photo], n: int, rng: random.Random) -> list[Photo]:
+    """Pick up to ``n`` photos that actually have a location label, for a preview.
+
+    Previewing is about seeing the burned-in place text, so photos with no
+    location are useless here and excluded.
+    """
+    located = [c for c in candidates if c.place]
+    return rng.sample(located, min(n, len(located)))

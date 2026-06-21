@@ -20,3 +20,4 @@ class Photo:
     height: int
     favorite: bool
     library: str = ""
+    place: str = ""  # concise "City, Country" label, or "" if the photo has no location

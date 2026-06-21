@@ -70,22 +70,38 @@ list. To **change how many photos** rotate, change `count`.
 ## Command line (optional)
 
 ```
-./.venv/bin/python -m tv_photos run            # full rotation: scan libraries + upload new + reshuffle
-./.venv/bin/python -m tv_photos run --reuse    # FAST reshuffle from already-uploaded photos (no scan, no upload)
+./.venv/bin/python -m tv_photos run            # scan libraries + upload `count` fresh photos + set album
+./.venv/bin/python -m tv_photos reshuffle      # FAST/FREE: fresh small set from already-uploaded photos
+./.venv/bin/python -m tv_photos preview        # render a few located photos with the overlay (no uploads)
 ./.venv/bin/python -m tv_photos run --dry-run  # preview: scan + plan, NO uploads
-./.venv/bin/python -m tv_photos run --count 20 # a small run (e.g. to test)
+./.venv/bin/python -m tv_photos run --count 20 # override the run size for one run
+./.venv/bin/python -m tv_photos run --no-location  # skip the location overlay for this run
 ./.venv/bin/python -m tv_photos status         # show album, totals, libraries
 ./.venv/bin/python -m tv_photos init           # one-time: sign in + create album
 ```
 
+### Keep the album small so the TV cycles all of it
+
+Google TV Ambient mode only ever shows a small subset of a big album. The fix is to keep
+the album **small** (`[rotation].count`, default **75**) and refresh it often. Every `run`
+sets the album to exactly `count` photos, so the TV can actually cycle through all of them.
+
 ### Two ways to rotate
 
-- **Full run** (`run`, and what `TV Photos.app` does) — scans your libraries (~5 min) and
-  uploads freshly-chosen photos. Adds variety but uploads ~1000 new photos each time
-  (permanent storage grows).
-- **Quick reshuffle** (`run --reuse`) — picks a new random set from photos you've **already
-  uploaded**; no scan, no upload, finishes in seconds, no extra storage. Best for day-to-day
-  “give me a different mix.” Run a **full run** occasionally when you want new content in the pool.
+- **Fresh run** (`run`, and what `TV Photos.app` does) — scans your libraries (~5 min) and
+  uploads `count` (~75) **freshly-chosen** photos *with location labels*, then sets the album
+  to exactly those. New content + labels every time; storage grows only ~75 photos/run.
+- **Quick reshuffle** (`reshuffle`) — picks a new random `reshuffle_count` (~75) set from photos
+  you've **already uploaded**; no scan, no upload, finishes in seconds, no extra storage. Note:
+  photos uploaded before location labels existed won't have a label.
+
+### Location labels
+
+`[overlay].location = true` burns a small **"City, Country"** caption into the bottom-left of
+each uploaded photo (near where the TV shows the album name), read from Apple Photos' built-in
+location data. Photos with no location are left unlabeled. The label is baked into the uploaded
+copy only — your originals are untouched. Because a photo is only uploaded once, **labels appear
+on newly-uploaded photos**; already-uploaded photos keep whatever they had.
 
 ---
 

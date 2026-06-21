@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .models import Photo
+from .place import photo_place_label
 
 
 def is_eligible(photo, min_width: int, exclude_screenshots: bool) -> bool:
@@ -46,6 +47,7 @@ def enumerate_photos(
                         height=p.height or 0,
                         favorite=bool(p.favorite),
                         library=label,
+                        place=photo_place_label(p),
                     )
                 )
                 kept += 1

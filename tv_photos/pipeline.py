@@ -93,6 +93,7 @@ def run_rotation(
     jpeg_quality: int,
     rng: random.Random,
     dry_run: bool = False,
+    overlay_location: bool = False,
     log=lambda msg: None,
     hasher=sha256_file,
     prepare=prepare_for_upload,
@@ -121,7 +122,8 @@ def run_rotation(
     items: list[tuple[str, str, str]] = []  # (sha, upload_token, filename)
     for i, (sha, photo) in enumerate(plan.to_upload, 1):
         try:
-            data = prepare(photo.path, max_long_edge, jpeg_quality)
+            label = photo.place if overlay_location else None
+            data = prepare(photo.path, max_long_edge, jpeg_quality, label)
             name = jpeg_filename(photo.filename)  # always JPEG bytes -> .jpg name
             token = client.upload_bytes(data, "image/jpeg", name)
             items.append((sha, token, name))

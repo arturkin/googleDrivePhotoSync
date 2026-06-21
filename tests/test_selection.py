@@ -1,10 +1,10 @@
 import random
 
 from tv_photos.models import Photo
-from tv_photos.selection import select_rotation
+from tv_photos.selection import select_preview, select_rotation
 
 
-def make_photos(n, *, favorite=False, start=0):
+def make_photos(n, *, favorite=False, start=0, place=""):
     return [
         Photo(
             uuid=f"u{i}",
@@ -13,6 +13,7 @@ def make_photos(n, *, favorite=False, start=0):
             width=4000,
             height=3000,
             favorite=favorite,
+            place=place,
         )
         for i in range(start, start + n)
     ]
@@ -80,3 +81,22 @@ def test_deterministic_with_seeded_rng():
     a = select_rotation(pool, 20, random.Random(7))
     b = select_rotation(pool, 20, random.Random(7))
     assert a == b
+
+
+# --- select_preview: sample photos that actually have a location label --------
+
+def test_select_preview_only_returns_photos_with_place():
+    with_place = make_photos(4, start=0, place="Vík, Iceland")
+    without = make_photos(6, start=100, place="")
+    result = select_preview(with_place + without, 10, rng())
+    assert len(result) == 4
+    assert all(p.place for p in result)
+
+
+def test_select_preview_caps_at_n():
+    pool = make_photos(20, place="Reykjavík, Iceland")
+    assert len(select_preview(pool, 8, rng())) == 8
+
+
+def test_select_preview_empty_when_no_located_photos():
+    assert select_preview(make_photos(5, place=""), 8, rng()) == []

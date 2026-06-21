@@ -5,14 +5,17 @@ import argparse
 import os
 import random
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
 
 from .auth import make_client
 from .config import load_config, render_config_template
+from .images import jpeg_filename, prepare_for_upload
 from .pipeline import reshuffle_existing, run_rotation
 from .progress import format_progress
+from .selection import select_preview
 from .source import enumerate_photos
 from .state import State
 
@@ -109,6 +112,7 @@ def cmd_run(args) -> int:
     if not candidates:
         sys.exit("No eligible photos found — check [source].libraries and that the drive is mounted.")
 
+    overlay = cfg.overlay_location and not args.no_location
     report = run_rotation(
         client=client,
         state=st,
@@ -119,6 +123,7 @@ def cmd_run(args) -> int:
         jpeg_quality=cfg.jpeg_quality,
         rng=random.Random(),
         dry_run=dry,
+        overlay_location=overlay,
         log=print,
         progress=None if dry else _make_progress_printer(),
     )
@@ -129,6 +134,69 @@ def cmd_run(args) -> int:
         f"album=+{report.added}/-{report.removed} -> {report.album_size}"
     )
     return 1 if report.upload_failed else 0
+
+
+def cmd_reshuffle(args) -> int:
+    """Fast/free: set the album to a fresh small random set from already-uploaded photos.
+
+    Keeps the album small (``reshuffle_count``, ~75) so Google TV Ambient mode actually
+    cycles through all of them instead of replaying the same handful out of a 1000-photo album.
+    No library scan, no uploads — finishes in seconds.
+    """
+    home, config, client_secret, token, state_db = _paths(args)
+    cfg = load_config(config) if config.exists() else None
+    st = State(state_db)
+    album_id = st.get_album_id()
+    if not album_id:
+        sys.exit("No album yet — run `tv-photos init` first.")
+
+    count = args.count or (cfg.reshuffle_count if cfg else 75)
+    pool = st.count_uploaded()
+    if pool == 0:
+        sys.exit("Nothing uploaded yet — run a full `tv-photos run` first to build the pool.")
+
+    client = make_client(client_secret, token)
+    report = reshuffle_existing(
+        client=client, state=st, count=count, album_id=album_id,
+        rng=random.Random(), log=print,
+    )
+    print(f"\nDone (reshuffle). album now holds {report.album_size} photos "
+          f"(+{report.added}/-{report.removed}) drawn from {pool} uploaded.")
+    return 0
+
+
+def cmd_preview(args) -> int:
+    """Render a few photos with the location overlay to a folder, so you can eyeball
+    the result before a full run touches the album. No uploads, no album changes."""
+    home, config, client_secret, token, state_db = _paths(args)
+    if not config.exists():
+        sys.exit(f"No config at {config}. Run `tv-photos init` and set [source].libraries.")
+    cfg = load_config(config)
+
+    out = Path(args.out).expanduser() if args.out else home / "preview"
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    print("Scanning libraries to find photos with location (can take several minutes)...")
+    candidates = enumerate_photos(
+        cfg.libraries, cfg.min_width, cfg.exclude_screenshots, log=lambda m: print("  " + m)
+    )
+    chosen = select_preview(candidates, args.count, random.Random())
+    if not chosen:
+        sys.exit("No photos with location info found — nothing to preview. "
+                 "(Photos need GPS/place data from Apple Photos.)")
+
+    for i, photo in enumerate(chosen, 1):
+        data = prepare_for_upload(photo.path, cfg.upload_max_long_edge, cfg.jpeg_quality, photo.place)
+        name = f"{i:02d}_{jpeg_filename(photo.filename)}"
+        (out / name).write_bytes(data)
+        print(f"  {name}  ->  {photo.place}")
+
+    print(f"\nWrote {len(chosen)} preview image(s) to {out}")
+    if sys.platform == "darwin":
+        subprocess.run(["open", str(out)], check=False)  # pop the folder in Finder
+    return 0
 
 
 def cmd_status(args) -> int:
@@ -144,7 +212,8 @@ def cmd_status(args) -> int:
     if config.exists():
         try:
             cfg = load_config(config)
-            print(f"rotation count: {cfg.count}")
+            print(f"rotation count: {cfg.count}  (reshuffle: {cfg.reshuffle_count})")
+            print(f"location label: {'on' if cfg.overlay_location else 'off'}")
             print(f"libraries:      {len(cfg.libraries)}")
             for lib in cfg.libraries:
                 print(f"  - {lib}")
@@ -171,7 +240,25 @@ def main(argv=None) -> int:
     pr.add_argument("--count", type=int, help="override rotation count for this run (e.g. a small first test)")
     pr.add_argument("--reuse", action="store_true",
                     help="reshuffle the album from already-uploaded photos only (no library scan, no new uploads)")
+    pr.add_argument("--no-location", action="store_true",
+                    help="don't burn the location label onto photos this run (overrides config)")
     pr.set_defaults(func=cmd_run)
+
+    prs = sub.add_parser(
+        "reshuffle",
+        help="fast/free: set the album to a fresh small random set from already-uploaded photos",
+    )
+    prs.add_argument("--count", type=int,
+                     help="album size (default [rotation].reshuffle_count, ~75) — keep small so the TV cycles all")
+    prs.set_defaults(func=cmd_reshuffle)
+
+    pp = sub.add_parser(
+        "preview",
+        help="render a few located photos with the overlay to a folder (no uploads) to eyeball the style",
+    )
+    pp.add_argument("--count", type=int, default=8, help="how many sample images to render (default 8)")
+    pp.add_argument("--out", help="output folder (default ~/.config/tv-photos/preview)")
+    pp.set_defaults(func=cmd_preview)
 
     ps = sub.add_parser("status", help="show pool/album/credential state")
     ps.set_defaults(func=cmd_status)
